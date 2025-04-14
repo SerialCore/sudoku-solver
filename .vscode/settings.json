@@ -4,6 +4,8 @@
         "stdio.h": "c",
         "numbers": "c",
         "cmath": "c",
-        "chrono": "c"
+        "chrono": "c",
+        "__tree": "c",
+        "map": "c"
     }
 }

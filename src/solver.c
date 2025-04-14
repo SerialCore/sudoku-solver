@@ -22,29 +22,36 @@ typedef struct fill {
     int num; /* the number to fill */
 }fill_t;
 
+typedef struct guess {
+    int back; /* the back point in fills */
+    int choice; /* the choice in note */
+    int count; /* the count of noted number */
+    int *nums; /* the exact note */
+}guess_t;
+
 typedef struct state {
+    puzzle_t *puzzle; /* puzzle point */
     int totalvoid; /* the total amount of voids */
     int totalfill; /* the total amount of filled voids */
-    int oncefill; /* amount of filled voids for one run */
-    int backpoint; /* the point of drawback/fork */
-    int guessed; /* the index of guessed number in note */
+    int deadend; /* if no where to go for now */
+    int guessed; /* times of guess attempts for now */
     int error; /* if there is an error after guessing */
 }state_t;
 
 /* stage 1: scan every void in puzzle map and check what can put in it */
-void update_note_void(puzzle_t *puzzle, note_t *notes, state_t *states);
+void update_note_void(note_t *notes, state_t *states);
 
 /* stage 2: scan every number in puzzle scale and check where can put it in */
-void update_note_number(puzzle_t *puzzle, note_t *notes);
+void update_note_number(note_t *notes, state_t *states);
 
 /* fill the logically available numbers; return filled */
-void solver_fill(puzzle_t *puzzle, note_t *notes, fill_t *history, state_t *states);
+void solver_fill(note_t *notes, fill_t *fills, state_t *states);
 
 /* guess a number and proceed */
-void solver_guess(puzzle_t *puzzle, note_t *notes, fill_t *history, state_t *states);
+void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *states);
 
 /* wrong guess, drawback */
-void solver_drawback(puzzle_t *puzzle, note_t *notes, fill_t *history, state_t *states);
+void solver_drawback(fill_t *fills, guess_t *guesses, state_t *states);
 
 /* main procedure of solving method */
 void solver_main(puzzle_t *puzzle)
@@ -56,10 +63,10 @@ void solver_main(puzzle_t *puzzle)
 
     /* initialize state information */
     state_t *states = malloc(sizeof(state_t));
+    states->puzzle = puzzle;
     states->totalvoid = 0;
     states->totalfill = 0;
-    states->oncefill = 0;
-    states->backpoint = 0;
+    states->deadend = 0;
     states->guessed = 0;
     states->error = 0;
 
@@ -85,35 +92,38 @@ void solver_main(puzzle_t *puzzle)
             }
         }
     }
-    fill_t *history = malloc(sizeof(fill_t)*states->totalvoid);
+    fill_t *fills = malloc(sizeof(fill_t)*states->totalvoid);
+    guess_t *guesses = malloc(sizeof(guess_t)*states->totalvoid);
     printf("[okey] get %d voids to fill\n\n", states->totalvoid);
 
     /* run the solver */
     while (states->totalfill < states->totalvoid) {
         /* stage 1: update note */
-        update_note_void(puzzle, notes, states);
+        update_note_void(notes, states);
         if (states->error) {
             /* wrong guess, drawback */
-            solver_drawback(puzzle, notes, history, states);
+            solver_drawback(fills, guesses, states);
             /* another guess */
-            solver_guess(puzzle, notes, history, states);
+            solver_guess(notes, fills, guesses, states);
             continue;
         }
-        else {
-            /* no error, no need of another guess */
-            states->guessed = 0;
-        }
         /* stage 2: update note more precisely */
-        update_note_number(puzzle, notes);
+        update_note_number(notes, states);
         /* fill in numbers avialable */
-        solver_fill(puzzle, notes, history, states);
-        if (states->oncefill == 0) {
+        solver_fill(notes, fills, states);
+        if (states->deadend) {
             /* dead end, guess a number */
-            solver_guess(puzzle, notes, history, states);
+            solver_guess(notes, fills, guesses, states);
         }
         puzzle_print_console(puzzle);
     }
-    printf("[okey] sudoku solved!\n");
+    printf("[okey] sudoku solved!\n\n");
+    
+    /* print fill history (no wrong guesses) */
+    printf("[log] solving history:\n");
+    for (int h = 0; h < states->totalfill; h++) {
+        printf("[log] fill void {%d, %d} <- %d\n", fills[h].row, fills[h].col, fills[h].num);
+    }
 
     /* free memory buffer */
     for (int i = 0; i < puzzle_size; i++) {
@@ -122,15 +132,26 @@ void solver_main(puzzle_t *puzzle)
         }
     }
     free(notes);
+    for (int i = 0; i < states->totalvoid; i++) {
+        if (guesses[i].nums != NULL) {
+            free(guesses[i].nums);
+        }
+    }
+    free(guesses);
+    free(fills);
     free(states);
-    free(history);
 }
 
-void update_note_void(puzzle_t *puzzle, note_t *notes, state_t *states)
+void update_note_void(note_t *notes, state_t *states)
 {
-    int puzzle_order = puzzle->order;
-    int puzzle_scale = puzzle->scale;
-    int *puzzle_map = puzzle->map;
+    /* situations:
+     * 1. basically, every note contains as least one number
+     * 2. unfortunately, any note contains no number which implies error
+     */
+
+    int puzzle_order = states->puzzle->order;
+    int puzzle_scale = states->puzzle->scale;
+    int *puzzle_map = states->puzzle->map;
 
     int count, found;
     int csrow, cscol; /* start of a chunk */
@@ -207,13 +228,19 @@ void update_note_void(puzzle_t *puzzle, note_t *notes, state_t *states)
     printf("\n");
 }
 
-void update_note_number(puzzle_t *puzzle, note_t *notes)
+void update_note_number(note_t *notes, state_t *states)
 {
-    int puzzle_order = puzzle->order;
-    int puzzle_scale = puzzle->scale;
-    int *puzzle_map = puzzle->map;
+    /* situations:
+     * 1. any number only exists in one note in one chunk which means that is the answer
+     * 2. any number only exists in one note in one row which means that is the answer
+     * 2. any number only exists in one note in one col which means that is the answer
+     */
 
-    int count;
+    int puzzle_order = states->puzzle->order;
+    int puzzle_scale = states->puzzle->scale;
+    int *puzzle_map = states->puzzle->map;
+
+    int count; /* count of "where" */
     int srow, scol; /* special location */
     int csrow, cscol; /* start of a chunk */
     note_t onenote;
@@ -323,13 +350,17 @@ void update_note_number(puzzle_t *puzzle, note_t *notes)
     printf("\n");
 }
 
-void solver_fill(puzzle_t *puzzle, note_t *notes, fill_t *history, state_t *states)
+void solver_fill(note_t *notes, fill_t *fills, state_t *states)
 {
-    int puzzle_scale = puzzle->scale;
-    int *puzzle_map = puzzle->map;
+    /* situations:
+     * 1. any note contains one number which means that is the answer
+     * 2. every note constains as least two numbers, that is called deadend
+     */
 
-    int number;
-    states->oncefill = 0;
+    int puzzle_scale = states->puzzle->scale;
+    int *puzzle_map = states->puzzle->map;
+
+    int filled = 0;
     note_t onenote;
 
     for (int noterow = 0; noterow < puzzle_scale; noterow++) {
@@ -339,74 +370,137 @@ void solver_fill(puzzle_t *puzzle, note_t *notes, fill_t *history, state_t *stat
             if (onenote.count == -1) {
                 continue;
             }
-
             if (onenote.count == 1) {
-                number = onenote.nums[0];
-                puzzle_map[puzzle_scale*noterow+notecol] = number;
-    
+                puzzle_map[puzzle_scale*noterow+notecol] = onenote.nums[0];
                 fill_t newfill = {
                     .row = noterow,
                     .col = notecol,
-                    .num = number
+                    .num = onenote.nums[0]
                 };
-                states->oncefill++;
-                history[states->totalfill++] = newfill;
-                printf("[log] fill void {%d, %d} <- %d\n", noterow, notecol, number);
+                filled++;
+                fills[states->totalfill++] = newfill;
+                printf("[log] fill void {%d, %d} <- %d\n", noterow, notecol, onenote.nums[0]);
             }
         }
     }
     
-    if (states->oncefill != 0) {
+    if (filled != 0) {
+        states->deadend = 0;
         printf("[log] %d voids filled for now\n\n", states->totalfill);
     }
     else {
+        states->deadend = 1;
         printf("[log] dead end encountered\n\n");
     }
 }
 
-void solver_guess(puzzle_t *puzzle, note_t *notes, fill_t *history, state_t *states)
+void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *states)
 {
-    int puzzle_scale = puzzle->scale;
-    int *puzzle_map = puzzle->map;
+    /* situations:
+     * 1. first deadend, first guess
+     * 2. another deadend encountered, need a new guess
+     * 3. drawback and choose next number for the last guess postion
+     * 4. not the problem of last guess, rollback (already handled by solver_drawback)
+     */
 
-    int choice = states->guessed; /* choose a number in note */
-    states->backpoint = states->totalfill;
+    int puzzle_scale = states->puzzle->scale;
+    int *puzzle_map = states->puzzle->map;
+
+    //int virgin; /* first or another */
+    int grow = 0, gcol = 0; /* at the start of map as default */
     note_t onenote;
+    guess_t oneguess;
 
-    for (int noterow = 0; noterow < puzzle_scale; noterow++) {
-        for (int notecol = 0; notecol < puzzle_scale; notecol++) {
+    /* not the first guess, move on to next number or new guess */
+    if (states->guessed != 0) {
+        oneguess = guesses[states->guessed-1];
+        grow = fills[oneguess.back].row;
+        gcol = fills[oneguess.back].col;
+        /* this is called by drawback/error not deadend */
+        if (!states->deadend) {
+            /* if choice hits the limit, the guess should have been wasted already */
+            oneguess.choice++;
+            guesses[states->guessed-1] = oneguess;
+            fill_t newfill = {
+                .row = grow,
+                .col = gcol,
+                .num = oneguess.nums[oneguess.choice]
+            };
+            fills[states->totalfill++] = newfill;
+            puzzle_map[puzzle_scale*grow+gcol] = newfill.num;
+            printf("[log] guess number %d -> {%d, %d}\n\n", newfill.num, grow, gcol);
+        }
+        /* another deadend, new guess */
+        else {
+            //virgin = 0;
+        }
+    }
+    /* first deadend, first guess */
+    else {
+        //virgin = 1;
+    }
+
+    /* make a new guess and record */
+    for (int noterow = grow; noterow < puzzle_scale; noterow++) {
+        for (int notecol = gcol; notecol < puzzle_scale; notecol++) {
             onenote = notes[puzzle_scale*noterow+notecol];
             if (onenote.count == -1) {
                 continue;
             }
-
-            fill_t guess = {
+            /* copy the note which could be lost later */
+            oneguess.back = states->totalfill;
+            oneguess.choice = 0; /* first guess */
+            oneguess.count = onenote.count;
+            oneguess.nums = malloc(sizeof(int)*onenote.count);
+            for (int c = 0; c < onenote.count; c++) {
+                oneguess.nums[c] = onenote.nums[c];
+            }
+            guesses[states->guessed++] = oneguess;
+            /* fill the guess in map */
+            states->deadend = 0;
+            fill_t newfill = {
                 .row = noterow,
                 .col = notecol,
-                .num = onenote.nums[choice]
+                .num = oneguess.nums[oneguess.choice]
             };
-            history[states->totalfill++] = guess;
-            puzzle_map[puzzle_scale*noterow+notecol] = guess.num;
-            printf("[log] guess number %d -> {%d, %d}\n\n", guess.num, noterow, notecol);
+            fills[states->totalfill++] = newfill;
+            puzzle_map[puzzle_scale*noterow+notecol] = newfill.num;
+            printf("[log] guess number %d -> {%d, %d}\n\n", newfill.num, noterow, notecol);
             return;
         }
     }
-
 }
 
-void solver_drawback(puzzle_t *puzzle, note_t *notes, fill_t *history, state_t *states)
+void solver_drawback(fill_t *fills, guess_t *guesses, state_t *states)
 {
-    int puzzle_scale = puzzle->scale;
-    int *puzzle_map = puzzle->map;
+    /* situations:
+     * 1. the number of last guess was wrong
+     * 2. the number of earlier guess was wrong
+     */
 
-    /* only withdraw filled number, no need to empty history */
-    for (int i = states->backpoint; i < states->totalfill; i++) {
-        puzzle_map[puzzle_scale*(history[i].row)+(history[i].col)] = 0;
+    int puzzle_scale = states->puzzle->scale;
+    int *puzzle_map = states->puzzle->map;
+
+    int grow, gcol;
+    guess_t oneguess;
+
+    oneguess = guesses[states->guessed-1];
+    /* not the problem of last guess, it's guessed up already */
+    if (oneguess.choice == oneguess.count - 1) {
+        /* throw last guess to the garbage */
+        states->guessed--;
+        oneguess = guesses[states->guessed-1];
     }
-    states->totalfill = states->backpoint;
-    states->error = 0;
-    states->guessed++;
+    grow = fills[oneguess.back].row;
+    gcol = fills[oneguess.back].col;
 
-    fill_t guess = history[states->backpoint];
-    printf("[log] withdraw number %d <- {%d, %d}\n\n", guess.num, guess.row, guess.col);
+    /* withdraw from guess backpoint to the last filled */
+    for (int i = oneguess.back; i < states->totalfill; i++) {
+        /* only withdraw filled number, no need to empty history */
+        puzzle_map[puzzle_scale*(fills[i].row)+(fills[i].col)] = 0;
+    }
+    states->totalfill = oneguess.back;
+    states->error = 0;
+
+    printf("[log] withdraw guess %d -> {%d, %d} and later\n\n", oneguess.nums[oneguess.choice], grow, gcol);
 }
