@@ -7,8 +7,6 @@ Steps for making a sudoku puzzle
 
 Standard map defined for order-3 9x9 sudoku
 
-| | | | | | | | | |
-|-|-|-|-|-|-|-|-|-|
 |1|2|3|4|5|6|7|8|9|
 |4|5|6|7|8|9|1|2|3|
 |7|8|9|1|2|3|4|5|6|
@@ -18,7 +16,6 @@ Standard map defined for order-3 9x9 sudoku
 |3|4|5|6|7|8|9|1|2|
 |6|7|8|9|1|2|3|4|5|
 |9|1|2|3|4|5|6|7|8|
-| | | | | | | | | |
 
 Screenshots
 
