@@ -47,6 +47,9 @@ void update_note_number(note_t *notes, state_t *states);
 /* fill the logically available numbers; return filled */
 void solver_fill(note_t *notes, fill_t *fills, state_t *states);
 
+/* validate the current map */
+void solver_validate(state_t *states);
+
 /* guess a number and proceed */
 void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *states);
 
@@ -100,22 +103,26 @@ void solver_main(puzzle_t *puzzle)
     while (states->totalfill < states->totalvoid) {
         /* stage 1: update note */
         update_note_void(notes, states);
+        /* stage 2: update note more precisely */
+        update_note_number(notes, states);
+        /* fill in numbers avialable */
+        solver_fill(notes, fills, states);
+        puzzle_print_console(puzzle);
+        /* chech the map */
+        solver_validate(states);
         if (states->error) {
             /* wrong guess, drawback */
             solver_drawback(fills, guesses, states);
             /* another guess */
             solver_guess(notes, fills, guesses, states);
+            puzzle_print_console(puzzle);
             continue;
         }
-        /* stage 2: update note more precisely */
-        update_note_number(notes, states);
-        /* fill in numbers avialable */
-        solver_fill(notes, fills, states);
         if (states->deadend) {
             /* dead end, guess a number */
             solver_guess(notes, fills, guesses, states);
+            puzzle_print_console(puzzle);
         }
-        puzzle_print_console(puzzle);
     }
     printf("[okey] sudoku solved!\n\n");
     
@@ -132,12 +139,12 @@ void solver_main(puzzle_t *puzzle)
         }
     }
     free(notes);
-    for (int i = 0; i < states->totalvoid; i++) {
+    /*for (int i = 0; i < states->totalvoid; i++) {
         if (guesses[i].nums != NULL) {
             free(guesses[i].nums);
         }
     }
-    free(guesses);
+    free(guesses);*/
     free(fills);
     free(states);
 }
@@ -145,36 +152,33 @@ void solver_main(puzzle_t *puzzle)
 void update_note_void(note_t *notes, state_t *states)
 {
     /* situations:
-     * 1. basically, every note contains as least one number
-     * 2. unfortunately, any note contains no number which implies error
+     * 1. every note contains as least one number
+     * 2. any note contains no number which implies error (already handled by solver_validate)
      */
 
     int puzzle_order = states->puzzle->order;
     int puzzle_scale = states->puzzle->scale;
     int *puzzle_map = states->puzzle->map;
 
-    int count, found;
+    int count; /* count of "what" */ 
+    int found; /* if number duplicated */
     int csrow, cscol; /* start of a chunk */
     note_t onenote;
 
     /* stage 1: scan every void in puzzle map and check what can put in it */
     for (int noterow = 0; noterow < puzzle_scale; noterow++) {
         for (int notecol = 0; notecol < puzzle_scale; notecol++) {
-            /* get a note with row and col */
             onenote = notes[puzzle_scale*noterow+notecol];
-            if (onenote.count == -1) {
-                continue;
+            /* if this location is void */
+            if (puzzle_map[puzzle_scale*noterow+notecol] == 0) {
+                onenote.count = 0;
             }
-            if (puzzle_map[puzzle_scale*noterow+notecol] != 0) {
+            else {
                 onenote.count = -1;
                 notes[puzzle_scale*noterow+notecol] = onenote;
                 continue;
             }
 
-            /* empty notes */
-            for (int c = 0; c < onenote.count; c++) {
-                onenote.nums[c] = 0;
-            }
             count = 0; /* count of "what" for a void */
             /* scan every number */
             for (int n = 1; n <= puzzle_scale; n++) {
@@ -284,7 +288,6 @@ void update_note_number(note_t *notes, state_t *states)
                 }
             }
         }
-
         /* check every row in notes */
         for (int noterow = 0; noterow < puzzle_scale; noterow++) {
             count = 0; /* count of "where" in a row for a number */
@@ -315,7 +318,6 @@ void update_note_number(note_t *notes, state_t *states)
                 printf("[log] scan number %d -> {%d, %d}\n", n, srow, scol);
             }
         }
-
         /* check every col in notes */
         for (int notecol = 0; notecol < puzzle_scale; notecol++) {
             count = 0; /* count of "where" in a col for a number */
@@ -360,16 +362,13 @@ void solver_fill(note_t *notes, fill_t *fills, state_t *states)
     int puzzle_scale = states->puzzle->scale;
     int *puzzle_map = states->puzzle->map;
 
-    int filled = 0;
+    int filled = 0; /* filled numbers for this run */
     note_t onenote;
 
     for (int noterow = 0; noterow < puzzle_scale; noterow++) {
         for (int notecol = 0; notecol < puzzle_scale; notecol++) {
             /* get a note with row and col */
             onenote = notes[puzzle_scale*noterow+notecol];
-            if (onenote.count == -1) {
-                continue;
-            }
             if (onenote.count == 1) {
                 puzzle_map[puzzle_scale*noterow+notecol] = onenote.nums[0];
                 fill_t newfill = {
@@ -392,6 +391,74 @@ void solver_fill(note_t *notes, fill_t *fills, state_t *states)
         states->deadend = 1;
         printf("[log] dead end encountered\n\n");
     }
+}
+
+void solver_validate(state_t *states)
+{
+    /* situations:
+     * 1. no duplication, no error
+     * 2. duplicated number in one row, col or chunk, error
+     */
+
+    int puzzle_order = states->puzzle->order;
+    int puzzle_scale = states->puzzle->scale;
+    int *puzzle_map = states->puzzle->map;
+
+    int count; /* count of number in one row, col or chunk */
+    int csrow, cscol; /* start of a chunk */
+
+    for (int n = 1; n <= puzzle_scale; n++) {
+        /* check every chunk in map */
+        for (int chrow = 0; chrow < puzzle_order; chrow++) {
+            for (int chcol = 0; chcol < puzzle_order; chcol++) {
+                count = 0; /* count of number in a chunk */
+                csrow = chrow * puzzle_order;
+                cscol = chcol * puzzle_order;
+                for (int i = csrow; i < csrow + puzzle_order; i++) {
+                    for (int j = cscol; j < cscol + puzzle_order; j++) {
+                        if (puzzle_map[puzzle_scale*i+j] == n) {
+                            count++;
+                        }
+                    }
+                }
+                if (count > 1) {
+                    states->error = 1;
+                    printf("[log] error encountered\n\n");
+                    return;
+                }
+            }
+        }
+        /* check every row in map */
+        for (int i = 0; i < puzzle_scale; i++) {
+            count = 0; /* count of number in a row */
+            for (int j = 0; j < puzzle_scale; j++) {
+                if (puzzle_map[puzzle_scale*i+j] == n) {
+                    count++;
+                }
+            }
+            if (count > 1) {
+                states->error = 1;
+                printf("[log] error encountered\n\n");
+                return;
+            }
+        }
+        /* check every col in map */
+        for (int j = 0; j < puzzle_scale; j++) {
+            count = 0; /* count of number in a col */
+            for (int i = 0; i < puzzle_scale; i++) {
+                if (puzzle_map[puzzle_scale*i+j] == n) {
+                    count++;
+                }
+            }
+            if (count > 1) {
+                states->error = 1;
+                printf("[log] error encountered\n\n");
+                return;
+            }
+        }
+    }
+
+    states->error = 0;
 }
 
 void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *states)
@@ -429,6 +496,7 @@ void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *state
             fills[states->totalfill++] = newfill;
             puzzle_map[puzzle_scale*grow+gcol] = newfill.num;
             printf("[log] guess number %d -> {%d, %d}\n\n", newfill.num, grow, gcol);
+            return;
         }
         /* another deadend, new guess */
         else {
@@ -441,8 +509,8 @@ void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *state
     }
 
     /* make a new guess and record */
-    for (int noterow = grow; noterow < puzzle_scale; noterow++) {
-        for (int notecol = gcol; notecol < puzzle_scale; notecol++) {
+    for (int noterow = 0; noterow < puzzle_scale; noterow++) {
+        for (int notecol = 0; notecol < puzzle_scale; notecol++) {
             onenote = notes[puzzle_scale*noterow+notecol];
             if (onenote.count == -1) {
                 continue;
@@ -486,7 +554,7 @@ void solver_drawback(fill_t *fills, guess_t *guesses, state_t *states)
 
     oneguess = guesses[states->guessed-1];
     /* not the problem of last guess, it's guessed up already */
-    if (oneguess.choice == oneguess.count - 1) {
+    while (oneguess.choice == oneguess.count - 1) {
         /* throw last guess to the garbage */
         states->guessed--;
         oneguess = guesses[states->guessed-1];

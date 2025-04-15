@@ -1,3 +1,9 @@
+# what can this do
+
+- [ ] support up to order-9 81x81 sudoku
+- [x] make any random sudoku can solve it
+- [x] solve the hardest sudoku designed by Arto Inkala in 2012
+
 # sudoku maker
 
 Steps for making a sudoku puzzle

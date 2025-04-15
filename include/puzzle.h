@@ -14,6 +14,9 @@ typedef struct puzzle {
    int *map;
 }puzzle_t;
 
+/* make the world's hardest sudoku */
+puzzle_t *puzzle_make_default();
+
 /* make puzzle map by swapping rows and cols */
 puzzle_t *puzzle_make_swap(int order);
 

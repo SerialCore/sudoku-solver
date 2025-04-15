@@ -36,9 +36,15 @@ int main(int argc, char **argv)
     }
     else if (argc == 4) {
         if (!strcmp(argv[1], "make")) {
-            puzzle_t *puzzle = puzzle_make_swap(atoi(argv[3]));
-            if (puzzle != NULL) {
+            if (!strcmp(argv[3], "default")) {
+                puzzle_t *puzzle = puzzle_make_default();
                 puzzle_write_data(argv[2], puzzle);
+            }
+            else {
+                puzzle_t *puzzle = puzzle_make_swap(atoi(argv[3]));
+                if (puzzle != NULL) {
+                    puzzle_write_data(argv[2], puzzle);
+                }
             }
         }
         else {
@@ -55,14 +61,16 @@ int main(int argc, char **argv)
 void print_help()
 {
     printf("This is the help page, for now.\n");
-    printf("usage: ./sudoku_solver [operate] [datafile] [order] > logfile\n\n");
+    printf("usage: ./sudoku_solver [operate] [datafile] [parameter]\n\n");
     printf("operate: \n");
     printf("    make\tmake a new puzzle and write to file.\n");
     printf("    solve\tread a puzzle and solve it.\n");
     printf("    help\tshow this page.\n\n");
-    printf("order N: \n");
-    printf("    N can be 2, 3, 4, ..., 9\n\n");
+    printf("parameter: \n");
+    printf("    order N\tcan be 2, 3, 4, ..., 9\n");
+    printf("    default\tthe hardest sudoku in the world\n\n");
     printf("example: \n");
-    printf("    ./sudoku_solver make puzzle.dat 3 > make.log\n");
-    printf("    ./sudoku_solver solve puzzle.dat > solve.log\n");
+    printf("    ./sudoku_solver make puzzle.dat 3\n");
+    printf("    ./sudoku_solver make puzzle.dat default\n");
+    printf("    ./sudoku_solver solve puzzle.dat\n");
 }

@@ -14,6 +14,33 @@
 #include <math.h>
 #include <time.h>
 
+puzzle_t *puzzle_make_default()
+{
+    int puzzle_map[81] = {
+        0,0,5,3,0,0,0,0,0,
+        8,0,0,0,0,0,0,2,0,
+        0,7,0,0,1,0,5,0,0,
+        4,0,0,0,0,5,3,0,0,
+        0,1,0,0,7,0,0,0,6,
+        0,0,3,2,0,0,0,8,0,
+        0,6,0,5,0,0,0,0,9,
+        0,0,4,0,0,0,0,3,0,
+        0,0,0,0,0,9,7,0,0
+    };
+
+    puzzle_t *puzzle = malloc(sizeof(puzzle_t));
+    puzzle->order = 3;
+    puzzle->scale = 9;
+    puzzle->size = 81;
+    puzzle->map = malloc(sizeof(int)*puzzle->size);
+    for (int i = 0; i < puzzle->size; i++) {
+        puzzle->map[i] = puzzle_map[i];
+    }
+    puzzle_print_console(puzzle);
+
+    return puzzle;
+}
+
 puzzle_t *puzzle_make_swap(int order)
 {
     if (order < 2 && order > 9) {
