@@ -73,9 +73,8 @@ void solver_main(puzzle_t *puzzle)
     states->guessed = 0;
     states->error = 0;
 
-    /* initialize notepad */
-    note_t *notes = malloc(sizeof(note_t)*puzzle_size);
     /* create a mirror map of notes */
+    note_t *notes = malloc(sizeof(note_t)*puzzle_size);
     for (int i = 0; i < puzzle_scale; i++) {
         for (int j = 0; j < puzzle_scale; j++) {
             if (puzzle_map[puzzle_scale*i+j] == 0) {
@@ -95,14 +94,33 @@ void solver_main(puzzle_t *puzzle)
             }
         }
     }
+    /* create fill history */
     fill_t *fills = malloc(sizeof(fill_t)*states->totalvoid);
+    /* create guess history */
     guess_t *guesses = malloc(sizeof(guess_t)*states->totalvoid);
+    for (int i = 0; i < states->totalvoid; i++) {
+        guess_t initguess = {
+            .back = 0,
+            .choice = 0,
+            .count = 0,
+            .nums = malloc(sizeof(int)*puzzle_scale)
+        };
+        guesses[i] = initguess;
+    }
     printf("[okey] get %d voids to fill\n\n", states->totalvoid);
 
     /* run the solver */
     while (states->totalfill < states->totalvoid) {
         /* stage 1: update note */
         update_note_void(notes, states);
+        if (states->error) {
+            /* wrong guess, drawback */
+            solver_drawback(fills, guesses, states);
+            /* another guess */
+            solver_guess(notes, fills, guesses, states);
+            puzzle_print_console(puzzle);
+            continue;
+        }
         /* stage 2: update note more precisely */
         update_note_number(notes, states);
         /* fill in numbers avialable */
@@ -131,6 +149,16 @@ void solver_main(puzzle_t *puzzle)
     for (int h = 0; h < states->totalfill; h++) {
         printf("[log] fill void {%d, %d} <- %d\n", fills[h].row, fills[h].col, fills[h].num);
     }
+    printf("\n");
+
+    /* print guess history (no wrong guesses) */
+    fill_t guessfill;
+    printf("[log] guessed history:\n");
+    for (int g = 0; g < states->guessed; g++) {
+        guessfill = fills[guesses[g].back];
+        printf("[log] guess number %d -> {%d, %d}\n", guessfill.num, guessfill.row, guessfill.col);
+    }
+    printf("\n");
 
     /* free memory buffer */
     for (int i = 0; i < puzzle_size; i++) {
@@ -139,12 +167,12 @@ void solver_main(puzzle_t *puzzle)
         }
     }
     free(notes);
-    /*for (int i = 0; i < states->totalvoid; i++) {
+    for (int i = 0; i < states->guessed; i++) {
         if (guesses[i].nums != NULL) {
             free(guesses[i].nums);
         }
     }
-    free(guesses);*/
+    free(guesses);
     free(fills);
     free(states);
 }
@@ -153,7 +181,7 @@ void update_note_void(note_t *notes, state_t *states)
 {
     /* situations:
      * 1. every note contains as least one number
-     * 2. any note contains no number which implies error (already handled by solver_validate)
+     * 2. any note contains no number which implies error
      */
 
     int puzzle_order = states->puzzle->order;
@@ -516,10 +544,10 @@ void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *state
                 continue;
             }
             /* copy the note which could be lost later */
+            oneguess = guesses[states->guessed];
             oneguess.back = states->totalfill;
-            oneguess.choice = 0; /* first guess */
+            oneguess.choice = 0; /* new guess */
             oneguess.count = onenote.count;
-            oneguess.nums = malloc(sizeof(int)*onenote.count);
             for (int c = 0; c < onenote.count; c++) {
                 oneguess.nums[c] = onenote.nums[c];
             }
