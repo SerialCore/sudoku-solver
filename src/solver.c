@@ -145,20 +145,20 @@ void solver_main(puzzle_t *puzzle)
     printf("[okey] sudoku solved!\n\n");
     
     /* print fill history (no wrong guesses) */
-    printf("[log] solving history:\n");
+    printf("[filled] ");
     for (int h = 0; h < states->totalfill; h++) {
-        printf("[log] fill void {%d, %d} <- %d\n", fills[h].row, fills[h].col, fills[h].num);
+        printf("%d -> {%d, %d}, ", fills[h].num, fills[h].row, fills[h].col);
     }
-    printf("\n");
+    printf("\n\n");
 
     /* print guess history (no wrong guesses) */
     fill_t guessfill;
-    printf("[log] guessed history:\n");
+    printf("[guessed] ");
     for (int g = 0; g < states->guessed; g++) {
         guessfill = fills[guesses[g].back];
-        printf("[log] guess number %d -> {%d, %d}\n", guessfill.num, guessfill.row, guessfill.col);
+        printf("%d -> {%d, %d}, ", guessfill.num, guessfill.row, guessfill.col);
     }
-    printf("\n");
+    printf("\n\n");
 
     /* free memory buffer */
     for (int i = 0; i < puzzle_size; i++) {
@@ -193,6 +193,7 @@ void update_note_void(note_t *notes, state_t *states)
     int csrow, cscol; /* start of a chunk */
     note_t onenote;
 
+    printf("[scan] ");
     /* stage 1: scan every void in puzzle map and check what can put in it */
     for (int noterow = 0; noterow < puzzle_scale; noterow++) {
         for (int notecol = 0; notecol < puzzle_scale; notecol++) {
@@ -246,18 +247,17 @@ void update_note_void(note_t *notes, state_t *states)
             /* if error encountered */
             if (count == 0) {
                 states->error = 1;
-                printf("[log] error encountered\n\n");
+                printf("\n[error] empty note\n\n");
                 return;
             }
             /* all is well */
-            printf("[log] scan void {%d, %d} <- ", noterow, notecol);
+            printf("{%d, %d} <- ", noterow, notecol);
             for (int c = 0; c < count; c++) {
                 printf("%d, ", onenote.nums[c]);
             }
-            printf("\n");
         }
     }
-    printf("\n");
+    printf("\n\n");
 }
 
 void update_note_number(note_t *notes, state_t *states)
@@ -277,6 +277,7 @@ void update_note_number(note_t *notes, state_t *states)
     int csrow, cscol; /* start of a chunk */
     note_t onenote;
 
+    printf("[scan] ");
     /* stage 2: scan every number in puzzle scale and check where can put it in */
     for (int n = 1; n <= puzzle_scale; n++) {
         /* check every chunk in notes */
@@ -312,7 +313,7 @@ void update_note_number(note_t *notes, state_t *states)
                     onenote.count = 1;
                     onenote.nums[0] = n;
                     notes[puzzle_scale*srow+scol] = onenote;
-                    printf("[log] scan number %d -> {%d, %d}\n", n, srow, scol);
+                    printf("%d -> {%d, %d}, ", n, srow, scol);
                 }
             }
         }
@@ -343,7 +344,7 @@ void update_note_number(note_t *notes, state_t *states)
                 onenote.count = 1;
                 onenote.nums[0] = n;
                 notes[puzzle_scale*srow+scol] = onenote;
-                printf("[log] scan number %d -> {%d, %d}\n", n, srow, scol);
+                printf("%d -> {%d, %d}, ", n, srow, scol);
             }
         }
         /* check every col in notes */
@@ -373,11 +374,11 @@ void update_note_number(note_t *notes, state_t *states)
                 onenote.count = 1;
                 onenote.nums[0] = n;
                 notes[puzzle_scale*srow+scol] = onenote;
-                printf("[log] scan number %d -> {%d, %d}\n", n, srow, scol);
+                printf("%d -> {%d, %d}, ", n, srow, scol);
             }
         }
     }
-    printf("\n");
+    printf("\n\n");
 }
 
 void solver_fill(note_t *notes, fill_t *fills, state_t *states)
@@ -393,6 +394,7 @@ void solver_fill(note_t *notes, fill_t *fills, state_t *states)
     int filled = 0; /* filled numbers for this run */
     note_t onenote;
 
+    printf("[fill] ");
     for (int noterow = 0; noterow < puzzle_scale; noterow++) {
         for (int notecol = 0; notecol < puzzle_scale; notecol++) {
             /* get a note with row and col */
@@ -406,18 +408,19 @@ void solver_fill(note_t *notes, fill_t *fills, state_t *states)
                 };
                 filled++;
                 fills[states->totalfill++] = newfill;
-                printf("[log] fill void {%d, %d} <- %d\n", noterow, notecol, onenote.nums[0]);
+                printf("%d -> {%d, %d}, ", onenote.nums[0], noterow, notecol);
             }
         }
     }
+    printf("\n");
     
     if (filled != 0) {
         states->deadend = 0;
-        printf("[log] %d voids filled for now\n\n", states->totalfill);
+        printf("[okey] %d voids filled for now\n\n", states->totalfill);
     }
     else {
         states->deadend = 1;
-        printf("[log] dead end encountered\n\n");
+        printf("[error] deadend encountered\n\n");
     }
 }
 
@@ -451,7 +454,7 @@ void solver_validate(state_t *states)
                 }
                 if (count > 1) {
                     states->error = 1;
-                    printf("[log] error encountered\n\n");
+                    printf("[error] invalid fills\n\n");
                     return;
                 }
             }
@@ -466,7 +469,7 @@ void solver_validate(state_t *states)
             }
             if (count > 1) {
                 states->error = 1;
-                printf("[log] error encountered\n\n");
+                printf("[error] invalid fills\n\n");
                 return;
             }
         }
@@ -480,7 +483,7 @@ void solver_validate(state_t *states)
             }
             if (count > 1) {
                 states->error = 1;
-                printf("[log] error encountered\n\n");
+                printf("[error] invalid fills\n\n");
                 return;
             }
         }
@@ -523,7 +526,7 @@ void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *state
             };
             fills[states->totalfill++] = newfill;
             puzzle_map[puzzle_scale*grow+gcol] = newfill.num;
-            printf("[log] guess number %d -> {%d, %d}\n\n", newfill.num, grow, gcol);
+            printf("[guess] %d -> {%d, %d}\n\n", newfill.num, grow, gcol);
             return;
         }
         /* another deadend, new guess */
@@ -561,7 +564,7 @@ void solver_guess(note_t *notes, fill_t *fills, guess_t *guesses, state_t *state
             };
             fills[states->totalfill++] = newfill;
             puzzle_map[puzzle_scale*noterow+notecol] = newfill.num;
-            printf("[log] guess number %d -> {%d, %d}\n\n", newfill.num, noterow, notecol);
+            printf("[guess] %d -> {%d, %d}\n\n", newfill.num, noterow, notecol);
             return;
         }
     }
@@ -598,5 +601,5 @@ void solver_drawback(fill_t *fills, guess_t *guesses, state_t *states)
     states->totalfill = oneguess.back;
     states->error = 0;
 
-    printf("[log] withdraw guess %d -> {%d, %d} and later\n\n", oneguess.nums[oneguess.choice], grow, gcol);
+    printf("[withdraw] %d -> {%d, %d} and later\n\n", oneguess.nums[oneguess.choice], grow, gcol);
 }
