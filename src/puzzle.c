@@ -121,7 +121,7 @@ puzzle_t *puzzle_make_swap(int order)
                 puzzle_map[puzzle_scale*an+j] = puzzle_map[puzzle_scale*am+j];
                 puzzle_map[puzzle_scale*am+j] = temp_arrow[j];
             }
-            printf("[log] swap rows %d and %d\n", an, am);
+            printf("[swap] rows %d and %d\n", an, am);
         }
     }
     
@@ -174,7 +174,7 @@ puzzle_t *puzzle_make_swap(int order)
                 puzzle_map[puzzle_scale*i+an] = puzzle_map[puzzle_scale*i+am];
                 puzzle_map[puzzle_scale*i+am] = temp_arrow[i];
             }
-            printf("[log] swap cols %d and %d\n", an, am);
+            printf("[swap] cols %d and %d\n", an, am);
         }
     }
     printf("\n");
@@ -185,14 +185,15 @@ puzzle_t *puzzle_make_swap(int order)
 
     /* trim puzzle map */
     int randr, randc;
-    int trimcount = rand() % (puzzle_size / 5) + 4 * puzzle_size / 5;
+    int trimcount = rand() % (puzzle_size / 5) + 2 * puzzle_size / 5;
+    printf("[trim] ");
     for (int i = 0; i < trimcount; i++) {
         randr = rand() % puzzle_scale;
         randc = rand() % puzzle_scale;
         puzzle_map[puzzle_scale*randr+randc] = 0;
-        printf("[log] trim location {%d, %d}\n", randr, randc);
+        printf("{%d, %d}, ", randr, randc);
     }
-    printf("\n");
+    printf("\n\n");
     puzzle_print_console(puzzle);
 
     return puzzle;
